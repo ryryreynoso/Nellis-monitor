@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nellis Monitor</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Nellis">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect fill='%2300ff88' width='192' height='192' rx='48'/%3E%3Ctext x='96' y='140' font-size='120' font-weight='700' text-anchor='middle' fill='%230a0a0a' font-family='monospace'%3EN%3C/text%3E%3C/svg%3E">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;600;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg: #0a0a0a;
+            --surface: #151515;
+            --surface-hover: #1f1f1f;
+            --accent: #00ff88;
+            --accent-dim: #00ff8833;
+            --text: #ffffff;
+            --text-dim: #888888;
+            --danger: #ff3366;
+            --border: #222222;
+        }
+
+        body {
+            font-family: 'Manrope', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: env(safe-area-inset-bottom);
+            overflow-x: hidden;
+        }
+
+        .app {
+            max-width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            padding: max(env(safe-area-inset-top), 20px) 20px 20px;
+            background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Content */
+        .content {
+            flex: 1;
+            padding: 0 20px 20px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+
+        /* Notification Card */
+        .notification-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .notification-card.disabled {
+            opacity: 0.4;
+        }
+
+        .notif-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .notif-label {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .toggle {
+            width: 52px;
+            height: 28px;
+            background: var(--border);
+            border-radius: 14px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .toggle.active {
+            background: var(--accent);
+        }
+
+        .toggle-thumb {
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 11px;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toggle.active .toggle-thumb {
+            left: 27px;
+        }
+
+        .notif-desc {
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        /* Keywords */
+        .keyword-input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .keyword-input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--text);
+            font-family: 'Manrope', sans-serif;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .keyword-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .keyword-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .add-btn {
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            padding: 0 20px;
+            color: var(--bg);
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 0.05em;
+        }
+
+        .add-btn:active {
+            transform: scale(0.95);
+        }
+
+        .keywords-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .keyword-tag {
+            background: var(--surface-hover);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            animation: slideIn 0.2s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .keyword-remove {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+
+        .keyword-remove:active {
+            color: var(--danger);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* Settings */
+        .setting-row {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-label {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .setting-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        select {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: var(--accent);
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Results */
+        .result-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .result-time {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .result-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .result-match {
+            font-size: 13px;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .result-link {
+            color: var(--text-dim);
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .result-link:active {
+            color: var(--accent);
+        }
+
+        /* Action Button */
+        .action-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            color: var(--text);
+            font-family: 'Manrope', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
+        }
+
+        .action-btn:active {
+            background: var(--surface-hover);
+            transform: scale(0.98);
+        }
+
+        .action-btn.primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        /* Info Banner */
+        .info-banner {
+            background: var(--accent-dim);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text);
+        }
+
+        .info-banner strong {
+            color: var(--accent);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="logo">
+                <div class="status-dot"></div>
+                Nellis Monitor
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Notification Status -->
+            <div class="section">
+                <div class="notification-card" id="notificationCard">
+                    <div class="notif-status">
+                        <div class="notif-label">Push Notifications</div>
+                        <div class="toggle" id="notificationToggle">
+                            <div class="toggle-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="notif-desc">Get alerted when new items matching your keywords are listed</div>
+                </div>
+            </div>
+
+            <!-- Keywords -->
+            <div class="section">
+                <div class="section-title">Tracked Keywords</div>
+                <div class="keyword-input-group">
+                    <input type="text" class="keyword-input" id="keywordInput" placeholder="e.g., monitor, laptop, furniture">
+                    <button class="add-btn" id="addKeyword">ADD</button>
+                </div>
+                <div class="keywords-list" id="keywordsList">
+                    <div class="empty-state">Add keywords to start monitoring</div>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="section">
+                <div class="section-title">Check Frequency</div>
+                <div class="setting-row">
+                    <div class="setting-label">Scan interval</div>
+                    <select id="intervalSelect">
+                        <option value="1">Every 1 hour</option>
+                        <option value="3">Every 3 hours</option>
+                        <option value="6" selected>Every 6 hours</option>
+                        <option value="12">Every 12 hours</option>
+                        <option value="24">Every 24 hours</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="section">
+                <div class="section-title">Activity</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="totalChecks">0</span>
+                        <div class="stat-label">Scans</div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="totalMatches">0</span>
+                        <div class="stat-label">Matches</div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">Last check</div>
+                    <div class="setting-value" id="lastCheck">Never</div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="section">
+                <button class="action-btn primary" id="checkNow">Check Now</button>
+                <button class="action-btn" id="viewSite">Open Nellis Auction</button>
+            </div>
+
+            <!-- Recent Matches -->
+            <div class="section" id="resultsSection" style="display: none;">
+                <div class="section-title">Recent Matches</div>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        const state = {
+            notificationsEnabled: false,
+            keywords: [],
+            checkInterval: 6,
+            totalChecks: 0,
+            totalMatches: 0,
+            lastCheck: null,
+            recentMatches: [],
+            checkTimer: null
+        };
+
+        // Load state from localStorage
+        function loadState() {
+            const saved = localStorage.getItem('nellisMonitorState');
+            if (saved) {
+                Object.assign(state, JSON.parse(saved));
+                updateUI();
+            }
+        }
+
+        // Save state to localStorage
+        function saveState() {
+            localStorage.setItem('nellisMonitorState', JSON.stringify(state));
+        }
+
+        // Request notification permission
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                alert('This browser doesn\'t support notifications');
+                return false;
+            }
+
+            if (Notification.permission === 'granted') {
+                return true;
+            }
+
+            const permission = await Notification.requestPermission();
+            return permission === 'granted';
+        }
+
+        // Show notification
+        function showNotification(title, options = {}) {
+            if (Notification.permission === 'granted') {
+                const notification = new Notification(title, {
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%2300ff88" width="100" height="100"/><text x="50" y="70" font-size="60" text-anchor="middle" fill="%23000">N</text></svg>',
+                    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle fill="%2300ff88" cx="50" cy="50" r="50"/></svg>',
+                    vibrate: [200, 100, 200],
+                    ...options
+                });
+
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            }
+        }
+
+        // Backend API configuration
+        // For local testing: 'http://localhost:3000'
+        // For Vercel: 'https://your-app.vercel.app'
+        // Leave empty to use same domain (when deployed together)
+        const API_URL = ''; // Change this to your deployed backend URL
+
+        // Check for new listings
+        async function checkListings() {
+            if (state.keywords.length === 0) {
+                showNotification('⚠️ No Keywords', {
+                    body: 'Add keywords to start monitoring Nellis Auction'
+                });
+                return;
+            }
+
+            state.totalChecks++;
+            state.lastCheck = new Date().toISOString();
+            
+            try {
+                const results = await fetchNellisListings();
+                
+                if (results.length > 0) {
+                    state.totalMatches += results.length;
+                    state.recentMatches = [...results, ...state.recentMatches].slice(0, 20);
+                    
+                    if (state.notificationsEnabled) {
+                        showNotification(`🎯 ${results.length} New Match${results.length > 1 ? 'es' : ''}!`, {
+                            body: results[0].title,
+                            tag: 'nellis-match'
+                        });
+                    }
+                }
+                
+                saveState();
+                updateUI();
+            } catch (error) {
+                console.error('Check failed:', error);
+                // Don't spam user with error notifications
+                if (state.totalChecks === 1) {
+                    showNotification('⚠️ Check Failed', {
+                        body: 'Backend might be starting up. Try again in 30 seconds.'
+                    });
+                }
+            }
+        }
+
+        // Fetch listings from backend
+        async function fetchNellisListings() {
+            try {
+                const baseUrl = API_URL || window.location.origin;
+                const response = await fetch(`${baseUrl}/api/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        keywords: state.keywords
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Filter for truly new items (not in our recent matches)
+                const existingIds = new Set(state.recentMatches.map(m => m.id));
+                const newItems = (data.listings || []).filter(item => !existingIds.has(item.id));
+                
+                return newItems;
+                
+            } catch (error) {
+                console.error('Failed to fetch listings:', error);
+                throw error;
+            }
+        }
+
+        // Schedule automatic checks
+        function scheduleChecks() {
+            if (state.checkTimer) {
+                clearInterval(state.checkTimer);
+            }
+
+            if (state.notificationsEnabled && state.keywords.length > 0) {
+                const intervalMs = state.checkInterval * 60 * 60 * 1000;
+                state.checkTimer = setInterval(checkListings, intervalMs);
+            }
+        }
+
+        // UI Updates
+        function updateUI() {
+            // Notification toggle
+            const toggle = document.getElementById('notificationToggle');
+            const card = document.getElementById('notificationCard');
+            if (state.notificationsEnabled) {
+                toggle.classList.add('active');
+                card.classList.remove('disabled');
+            } else {
+                toggle.classList.remove('active');
+                card.classList.add('disabled');
+            }
+
+            // Keywords
+            const keywordsList = document.getElementById('keywordsList');
+            if (state.keywords.length === 0) {
+                keywordsList.innerHTML = '<div class="empty-state">Add keywords to start monitoring</div>';
+            } else {
+                keywordsList.innerHTML = state.keywords.map(kw => `
+                    <div class="keyword-tag">
+                        <span>${kw}</span>
+                        <button class="keyword-remove" onclick="removeKeyword('${kw}')">×</button>
+                    </div>
+                `).join('');
+            }
+
+            // Interval
+            document.getElementById('intervalSelect').value = state.checkInterval;
+
+            // Stats
+            document.getElementById('totalChecks').textContent = state.totalChecks;
+            document.getElementById('totalMatches').textContent = state.totalMatches;
+            document.getElementById('lastCheck').textContent = state.lastCheck 
+                ? new Date(state.lastCheck).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                : 'Never';
+
+            // Results
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsList = document.getElementById('resultsList');
+            if (state.recentMatches.length > 0) {
+                resultsSection.style.display = 'block';
+                resultsList.innerHTML = state.recentMatches.map(match => `
+                    <div class="result-card">
+                        <div class="result-time">${new Date(match.timestamp).toLocaleString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: 'numeric', 
+                            minute: '2-digit' 
+                        })}</div>
+                        <div class="result-title">${match.title}</div>
+                        <div class="result-match">Matched: ${match.matchedKeyword}</div>
+                        <a href="${match.url}" class="result-link" target="_blank">View on Nellis →</a>
+                    </div>
+                `).join('');
+            } else {
+                resultsSection.style.display = 'none';
+            }
+        }
+
+        // Event handlers
+        document.getElementById('notificationToggle').addEventListener('click', async () => {
+            if (!state.notificationsEnabled) {
+                const granted = await requestNotificationPermission();
+                if (granted) {
+                    state.notificationsEnabled = true;
+                    scheduleChecks();
+                    showNotification('✅ Monitoring Active', {
+                        body: 'You\'ll be notified when new items match your keywords'
+                    });
+                }
+            } else {
+                state.notificationsEnabled = false;
+                if (state.checkTimer) {
+                    clearInterval(state.checkTimer);
+                }
+            }
+            saveState();
+            updateUI();
+        });
+
+        document.getElementById('addKeyword').addEventListener('click', () => {
+            const input = document.getElementById('keywordInput');
+            const keyword = input.value.trim().toLowerCase();
+            
+            if (keyword && !state.keywords.includes(keyword)) {
+                state.keywords.push(keyword);
+                input.value = '';
+                saveState();
+                updateUI();
+                scheduleChecks();
+            }
+        });
+
+        document.getElementById('keywordInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('addKeyword').click();
+            }
+        });
+
+        window.removeKeyword = (keyword) => {
+            state.keywords = state.keywords.filter(kw => kw !== keyword);
+            saveState();
+            updateUI();
+            scheduleChecks();
+        };
+
+        document.getElementById('intervalSelect').addEventListener('change', async (e) => {
+            state.checkInterval = parseInt(e.target.value);
+            saveState();
+            scheduleChecks();
+            
+            // Update periodic sync interval if supported
+            if (registration && 'periodicSync' in registration) {
+                try {
+                    await registration.periodicSync.register('nellis-periodic-check', {
+                        minInterval: state.checkInterval * 60 * 60 * 1000
+                    });
+                    console.log('Periodic sync interval updated');
+                } catch (e) {
+                    console.log('Could not update periodic sync:', e);
+                }
+            }
+        });
+
+        document.getElementById('checkNow').addEventListener('click', async () => {
+            await checkListings();
+            // Also trigger background sync for Service Worker
+            await triggerBackgroundSync();
+        });
+
+        document.getElementById('viewSite').addEventListener('click', () => {
+            window.open('https://nellisauction.com', '_blank');
+        });
+
+
+
+        // IndexedDB for Service Worker communication
+        let db;
+        
+        async function initIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('NellisMonitor', 1);
+                
+                request.onerror = () => reject(request.error);
+                
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+                    if (!db.objectStoreNames.contains('state')) {
+                        db.createObjectStore('state');
+                    }
+                };
+                
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+            });
+        }
+
+        async function syncStateToIDB() {
+            if (!db) return;
+            
+            try {
+                const transaction = db.transaction(['state'], 'readwrite');
+                const store = transaction.objectStore('state');
+                await store.put({
+                    ...state,
+                    apiUrl: API_URL
+                }, 'appState');
+            } catch (error) {
+                console.error('Failed to sync to IndexedDB:', error);
+            }
+        }
+
+        async function loadStateFromIDB() {
+            if (!db) return;
+            
+            try {
+                const transaction = db.transaction(['state'], 'readonly');
+                const store = transaction.objectStore('state');
+                const request = store.get('appState');
+                
+                return new Promise((resolve) => {
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => resolve(null);
+                });
+            } catch (error) {
+                console.error('Failed to load from IndexedDB:', error);
+                return null;
+            }
+        }
+
+        // Override saveState to also sync to IndexedDB
+        const originalSaveState = saveState;
+        saveState = function() {
+            originalSaveState();
+            syncStateToIDB();
+        };
+
+        // Service Worker registration for background notifications (PWA)
+        let registration;
+        
+        async function registerServiceWorker() {
+            if (!('serviceWorker' in navigator)) {
+                console.log('Service Workers not supported');
+                return;
+            }
+
+            try {
+                registration = await navigator.serviceWorker.register('/service-worker.js', {
+                    scope: '/'
+                });
+                
+                console.log('Service Worker registered:', registration);
+
+                // Request periodic background sync (Chrome only, iOS limited)
+                if ('periodicSync' in registration) {
+                    try {
+                        await registration.periodicSync.register('nellis-periodic-check', {
+                            minInterval: state.checkInterval * 60 * 60 * 1000 // Convert hours to ms
+                        });
+                        console.log('Periodic sync registered');
+                    } catch (e) {
+                        console.log('Periodic sync not available:', e);
+                    }
+                }
+
+                // Listen for messages from Service Worker
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    if (event.data.type === 'NEW_MATCHES') {
+                        // Service Worker found new matches, update UI
+                        state.recentMatches = [...event.data.matches, ...state.recentMatches].slice(0, 20);
+                        updateUI();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Service Worker registration failed:', error);
+            }
+        }
+
+        // Trigger background sync
+        async function triggerBackgroundSync() {
+            if (!registration || !registration.sync) {
+                console.log('Background Sync not supported');
+                return;
+            }
+
+            try {
+                await registration.sync.register('nellis-check');
+                console.log('Background sync triggered');
+            } catch (error) {
+                console.error('Background sync failed:', error);
+            }
+        }
+
+        // Initialize everything
+        async function init() {
+            await initIndexedDB();
+            
+            // Try to load from IndexedDB first (Service Worker may have updated it)
+            const idbState = await loadStateFromIDB();
+            if (idbState) {
+                Object.assign(state, idbState);
+            } else {
+                // Fall back to localStorage
+                loadState();
+            }
+            
+            updateUI();
+            await registerServiceWorker();
+            scheduleChecks();
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
