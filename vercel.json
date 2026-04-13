@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/service-worker.js",
+      "dest": "/service-worker.js"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/manifest.json"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    }
+  ]
+}
