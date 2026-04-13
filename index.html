@@ -609,7 +609,7 @@
         async function fetchNellisListings() {
             try {
                 const baseUrl = API_URL || window.location.origin;
-                const response = await fetch(`${baseUrl}/api/index`, {
+                const response = await fetch(`${baseUrl}/api/search`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
