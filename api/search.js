@@ -19,105 +19,83 @@ export default async function handler(req, res) {
       });
     }
 
-    // Import axios for web search
     const axios = (await import('axios')).default;
+    const cheerio = (await import('cheerio')).default;
 
-    const allListings = [];
+    const results = [];
 
     for (const keyword of searchTerms) {
       try {
-        // Use DuckDuckGo HTML search (no API key needed)
-        const searchQuery = `site:nellisauction.com ${keyword}`;
-        const response = await axios.get('https://html.duckduckgo.com/html/', {
-          params: { q: searchQuery },
+        // Fetch Nellis search page
+        const response = await axios.get(`https://nellisauction.com/search`, {
+          params: { query: keyword },
           headers: {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
           },
           timeout: 10000
         });
 
-        const cheerio = (await import('cheerio')).default;
         const $ = cheerio.load(response.data);
+        const html = response.data;
         
-        // Parse DuckDuckGo results
-        $('.result').each((i, elem) => {
-          const $result = $(elem);
-          const link = $result.find('.result__url').attr('href');
-          const title = $result.find('.result__title').text().trim();
-          const snippet = $result.find('.result__snippet').text().trim();
-          
-          // Extract item ID from URL
-          const itemIdMatch = link?.match(/nellisauction\.com\/item\/(\d+)/);
-          const itemId = itemIdMatch?.[1];
-          
-          // Extract price from snippet if available
-          const priceMatch = snippet?.match(/\$\d+(?:\.\d{2})?/);
-          const price = priceMatch ? priceMatch[0] : 'See listing';
-          
-          if (itemId && title) {
-            allListings.push({
-              id: itemId,
-              title: title.substring(0, 150),
-              price,
-              url: `https://nellisauction.com/item/${itemId}`,
-              matchedKeyword: keyword,
-              timestamp: new Date().toISOString(),
-              snippet: snippet.substring(0, 200)
-            });
-          }
+        // Look for item count in the page
+        // Nellis usually shows "X items found" or similar
+        const countMatch = html.match(/(\d+)\s*items?\s*found/i) || 
+                          html.match(/found\s*(\d+)\s*items?/i) ||
+                          html.match(/(\d{1,5})\s*results?/i);
+        
+        const itemCount = countMatch ? parseInt(countMatch[1]) : 0;
+        
+        // Also count how many item links we can find
+        const itemLinks = $('a[href*="/item/"]').length;
+        
+        // Generate a unique "signature" for current results
+        // This helps detect new items
+        const firstItemId = $('a[href*="/item/"]').first().attr('href')?.match(/\/item\/(\d+)/)?.[1];
+        
+        results.push({
+          keyword,
+          totalItems: itemCount || itemLinks,
+          visibleItems: itemLinks,
+          firstItemId: firstItemId || null,
+          timestamp: new Date().toISOString(),
+          searchUrl: `https://nellisauction.com/search?query=${encodeURIComponent(keyword)}`
         });
 
-        // If no results from DuckDuckGo, try direct Nellis search page
-        if (allListings.length === 0) {
-          const nellisResponse = await axios.get(`https://nellisauction.com/search`, {
-            params: { query: keyword },
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'
-            },
-            timeout: 10000
-          });
-
-          const $nellis = cheerio.load(nellisResponse.data);
-          
-          // Try to find item links in the HTML
-          $nellis('a[href*="/item/"]').each((i, elem) => {
-            const href = $nellis(elem).attr('href');
-            const itemId = href?.match(/\/item\/(\d+)/)?.[1];
-            
-            if (itemId && i < 20) { // Limit to first 20 items
-              allListings.push({
-                id: itemId,
-                title: `${keyword} item #${itemId}`,
-                price: 'See listing',
-                url: `https://nellisauction.com${href}`,
-                matchedKeyword: keyword,
-                timestamp: new Date().toISOString()
-              });
-            }
-          });
-        }
-
       } catch (err) {
-        console.error(`Error searching ${keyword}:`, err.message);
+        console.error(`Error checking ${keyword}:`, err.message);
+        results.push({
+          keyword,
+          totalItems: 0,
+          visibleItems: 0,
+          error: err.message,
+          timestamp: new Date().toISOString()
+        });
       }
     }
 
-    // Remove duplicates by ID
-    const uniqueListings = Array.from(
-      new Map(allListings.map(item => [item.id, item])).values()
-    );
-
     return res.status(200).json({
       success: true,
-      totalListings: uniqueListings.length,
-      listings: uniqueListings
+      results,
+      // Convert to listings format for frontend compatibility
+      listings: results.filter(r => r.totalItems > 0).map(r => ({
+        id: `${r.keyword}-${r.firstItemId || Date.now()}`,
+        title: `${r.totalItems} ${r.keyword} items on Nellis`,
+        matchedKeyword: r.keyword,
+        url: r.searchUrl,
+        price: 'Click to browse',
+        timestamp: r.timestamp,
+        count: r.totalItems
+      })),
+      totalListings: results.reduce((sum, r) => sum + (r.totalItems || 0), 0)
     });
 
   } catch (error) {
     console.error('Handler error:', error);
     return res.status(500).json({ 
       success: false, 
-      error: 'Search failed',
+      error: 'Check failed',
       message: error.message 
     });
   }
